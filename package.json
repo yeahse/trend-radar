@@ -1,0 +1,13 @@
+{
+  "name": "trend-radar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "유튜브 AI 팬애니/TS 채널을 위한 트렌드 선행 탐지 자동 수집 + 점수화 + 일일 브리핑",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "daily": "node src/run.mjs",
+    "report": "node src/run.mjs --report-only",
+    "init": "node src/run.mjs --init"
+  }
+}

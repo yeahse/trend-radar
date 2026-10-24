@@ -1,0 +1,324 @@
+{
+  "_comment": "값을 채워 넣으면 자동으로 수집됩니다. 비워두어도 동작합니다(해당 소스는 skip).",
+  "youtube": {
+    "apiKey": "",
+    "regionCode": "KR",
+    "watchChannelIds": [],
+    "_apiKey": "2026-10-23 발급 (GCP 프로젝트 trend-radar-512500 / YouTube Data API v3 제한)",
+    "_watchChannelIds": "경쟁/참조 채널의 channelId (https://www.youtube.com/@ID -> URL의 UC... 를 붙임). 예: [\"UCxxxxx\"]"
+  },
+  "naver": {
+    "clientId": "",
+    "clientSecret": "",
+    "_clientId": "https://developers.naver.com 에서 '데이터랩 검색어트렌드' 사용 동의 후 발급 (client id / secret)",
+    "refScaleTerms": [
+      "말포이",
+      "TS 말포이",
+      "malfoid",
+      "malfoy",
+      "fem draco",
+      "female draco",
+      "draco malfoy",
+      "genderbend",
+      "tsundere",
+      "해리포터",
+      "harry potter",
+      "해리포터 AI",
+      "AI 팬애니",
+      "rule 63"
+    ],
+    "_refScaleTerms": "네이버 데이터랩 정규화 스케일 고정용 단어 목록. 이 목록의 검색량 합계 피크가 100이 되고 모든 watchlist 단어가 같은 눈금으로 측정된다. 반드시 고정 유지 (바꾸면 날짜 간 추세 비교가 깨진다). 20개 이하."
+  },
+  "discord": {
+    "webhookUrl": "",
+    "globalWebhookUrl": "",
+    "_webhookUrl": "Discord 채널 설정 -> Integrations -> Webhook URL (2026-10-23 'Trend Radar' 서버 #briefing 채널에 생성)",
+    "_globalWebhookUrl": "선택. 채우면 🌍 글로벌 트렌드 embed를 이 웹훅(별도 채널)으로만 보냄. 빈 값이면 #briefing에 함께 전송."
+  },
+  "telegram": {
+    "botToken": "",
+    "chatId": ""
+  },
+  "reddit": {
+    "clientId": "",
+    "clientSecret": "",
+    "username": "",
+    "_key": "reddit.com/prefs/apps → 'script' 앱 생성 → client id/secret 입력 (무료, OAuth quota 넉넉). 없으면 RSS는 서브레딧 top만 수집 (검색 RSS는 무관 결과 반환해 폐기됨)",
+    "_username": "",
+    "_appRegistration": "★ 2026-10-24 정책 확인: 앱은 반드시 https://developers.reddit.com/app-registration 에서 등록(데이터 API 약관 동의 포함)해야 'create app'이 통과함. prefs/apps만으론 'Responsible Builder Policy' 에러가 남.",
+    "subreddits": [
+      "dankmemes",
+      "HarryPotter",
+      "genderbent",
+      "rule63",
+      "Animemes",
+      "CharacterDesign",
+      "FanFiction",
+      "AIart",
+      "MALfoid",
+      "wholesomeanime"
+    ],
+    "queries": [
+      "genderbend fanart",
+      "AI fan animation",
+      "malfoid",
+      "tsundere",
+      "rule 63"
+    ]
+  },
+  "bluesky": {
+    "queries": [
+      "malfoid",
+      "genderbend fanart",
+      "AI fan animation",
+      "fan comic",
+      "tsundere"
+    ]
+  },
+  "watchlist": {
+    "_comment": "여기가 곧 '감시 대상' 입니다. 여기에 있는 단어의 상승만 점수화합니다.",
+    "terms": [
+      "말포이",
+      "TS 말포이",
+      "malfoid",
+      "malfoy",
+      "draco malfoy",
+      "fem draco",
+      "female draco",
+      "fem!draco",
+      "해리포터",
+      "harry potter",
+      "해리포터 AI",
+      "AI 팬애니",
+      "genderbend",
+      "tsundere",
+      "rule 63",
+      "德拉科",
+      "女体化",
+      "ドラ子",
+      "제비차",
+      "tesla fly",
+      "flying tesla",
+      "hfy audiobook"
+    ],
+    "wikiMap": {
+      "말포이": "Draco_Malfoy",
+      "malfoid": "Draco_Malfoy",
+      "해리포터": "Harry_Potter_(film_series)",
+      "harry potter": "Harry_Potter_(film_series)",
+      "해리포터 AI": "Harry_Potter_(film_series)"
+    }
+  },
+  "deviantartTags": [
+    "malfoid",
+    "femdraco",
+    "hpfanart",
+    "tsundere"
+  ],
+  "fit": {
+    "_comment": "내 채널 포맷으로 즉시 제작 가능한 주제 = fit 100점. 절대 안 되는 것 = 0.",
+    "terms": [
+      "해리포터",
+      "harry potter",
+      "마법소녀",
+      "판타지",
+      "tsundere",
+      "genderbend",
+      "AI 애니",
+      "팬픽",
+      "원작 IP",
+      "female version",
+      "fem",
+      "draco",
+      "제비차",
+      "flying",
+      "나법",
+      "말포이"
+    ]
+  },
+  "globalTrends": {
+    "_comment": "🌍 watchlist와 무관한 축. '전 세계 지금 뭐가 유행하는가' → 내 포맷으로 매칭해서 '지금 올릴 것'을 뽑는다.",
+    "_countrySelection": "2026-10-23 사용자 지정: 37개국 → 12개국. 선택 기준 = (1) SNS/미디어 시장 규모 (YouTube popular 합산뷰 + TikTok/IGdezelfde 시장) + (2) '고유콘텐츠 수'(그 나라만의 트렌드가 잡히는 정도, 2026-10-23 실측). 고유콘텐츠가 많을수록 그 나라 고유 신호가 잘 잡혀서 따라해도 안 따라하는 트렌드가 된다. 12개: US(3플랫폼 최대) IN(틱톡1위) ID(틱톡2위) BR(유튜브3위·포르투갈어) JP(유튜브2위) KR(자국) VN·PH·TH(틱톡 강함) MX(스페인어권 최대) TR(틱톡 강함·고유45) DE(EU 최대·유튜브4위). 제외: FR·ES·IT·GB·TW·RU·PL·SE·NL·PT·NZ·CA·AU 등 (작은 시장 또는 글로벌 메가히트만 반복)",
+    "geos": [
+      "US",
+      "IN",
+      "ID",
+      "BR",
+      "JP",
+      "KR",
+      "VN",
+      "PH",
+      "TH",
+      "MX",
+      "TR",
+      "DE"
+    ],
+    "ytRegions": [
+      "US",
+      "IN",
+      "ID",
+      "BR",
+      "JP",
+      "KR",
+      "VN",
+      "PH",
+      "TH",
+      "MX",
+      "TR",
+      "DE"
+    ],
+    "wikiLangs": [
+      "en",
+      "ko",
+      "ja",
+      "es",
+      "pt",
+      "vi",
+      "id",
+      "th"
+    ],
+    "ytMaxResults": 50,
+    "wikiMax": 50,
+    "trendsMax": 10,
+    "maxIdeas": 12,
+    "fitTerms": [],
+    "_fitTerms": "★ 2026-10-23 사용자 지시로 비움. IP 고유어를 넣으면 특정 IP(해리포터)가 자동으로 특별대우된다. 채널 적합성은 coreSignals의 포맷/장르 신호(성별전환·AI애니·원작장르·TS남주·커뮤니티)만으로 판정한다.",
+    "_signals": "coreSignals(직격) / formatSignals(보조) 로 나뉜다. core 하나만 맞아도 내 포맷으로 직격. 'trailer' 같은 극일반 단어는 core에 넣지 않는다.",
+    "coreSignals": {
+      "성별전환": [
+        "genderbend",
+        "gender swap",
+        "genderswap",
+        "female version",
+        "male version",
+        "body swap",
+        "genderbent",
+        "femboy",
+        "tsundere",
+        "女体化",
+        "재성별",
+        "gender change",
+        "male to female",
+        "female to male"
+      ],
+      "AI애니": [
+        "ai art",
+        "aiart",
+        "ai anime",
+        "ai animation",
+        "ai video",
+        "aigenerated",
+        "aigc",
+        "animation",
+        "animated",
+        "anime",
+        "cartoon",
+        "comic",
+        "webtoon",
+        "manhwa",
+        "vtuber",
+        "motion comic"
+      ],
+      "원작IP": [
+        "fantasy",
+        "magic",
+        "wizard",
+        "witch",
+        "dragon",
+        "anime series",
+        "manga",
+        "마법",
+        "마술",
+        "魔法",
+        "원작",
+        "판타지",
+        "판타지세계",
+        "완전新作",
+        "신작",
+        "개작",
+        "마법소녀",
+        "isekai",
+        "wuxia"
+      ],
+      "TS남주": [
+        "tsundere",
+        "male lead",
+        "romance",
+        "romcom",
+        "yuri",
+        "otome",
+        "love story",
+        "confession",
+        "kiss",
+        "bl reader",
+        "x reader"
+      ],
+      "커뮤니티": [
+        "fanfic",
+        "ao3",
+        "fanfiction",
+        "headcanon",
+        "wattpad",
+        "fanart",
+        "rpf",
+        "reader insert"
+      ]
+    },
+    "formatSignals": {
+      "시리즈연작": [
+        "episode",
+        "ep1",
+        "ep2",
+        "ep01",
+        "season 2",
+        "season 3",
+        "part 1",
+        "part 2",
+        "chapter 1",
+        "webtoon series",
+        "comic series",
+        "manga series",
+        "final episode",
+        "episode 1"
+      ],
+      "숏폼트렌드": [
+        "tiktok",
+        "shorts",
+        "reels",
+        "viral",
+        "meme",
+        "challenge",
+        "trend",
+        "template",
+        "satisfying",
+        "asmr",
+        "glow up",
+        "transformation",
+        "aesthetic",
+        "sound",
+        "edit",
+        "dance",
+        "core",
+        "brainrot"
+      ],
+      "밈커뮤니티": [
+        "reaction",
+        "troll",
+        "drama",
+        "exposed",
+        "gone wrong",
+        "cursed",
+        "dark humor",
+        "relatable",
+        "meirl",
+        "pov",
+        "irl"
+      ]
+    }
+  },
+  "report": {
+    "minScore": 55,
+    "watchScore": 35,
+    "topN": 15
+  }
+}

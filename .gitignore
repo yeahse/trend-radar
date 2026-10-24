@@ -1,0 +1,7 @@
+config.json
+data/
+logs/
+node_modules/
+*.log
+reports/
+!reports/.gitkeep

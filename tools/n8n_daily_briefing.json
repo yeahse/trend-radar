@@ -1,0 +1,62 @@
+{
+  "name": "Trend Radar - Daily Briefing",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "days", "triggerAtHour": 8, "triggerAtMinute": 0 }] } },
+      "id": "sch-1",
+      "name": "매일 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-200, 0]
+    },
+    {
+      "parameters": {
+        "command": "node src/run.mjs",
+        "executeOnce": false
+      },
+      "id": "exec-1",
+      "name": "수집 실행",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "disabled": false
+    },
+    {
+      "parameters": {
+        "filePath": "C:\\Users\\ue-agent\\Documents\\기본 프로젝트\\trend-radar\\reports\\latest.md",
+        "options": {}
+      },
+      "id": "read-1",
+      "name": "리포트 읽기",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "authentication": "none",
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.data.slice(0, 1900) }) }}",
+        "options": {}
+      },
+      "id": "discord-1",
+      "name": "Discord 전송",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [400, 0]
+    }
+  ],
+  "connections": {
+    "매일 08:00": { "main": [[{ "node": "수집 실행", "type": "main", "index": 0 }]] },
+    "수집 실행": { "main": [[{ "node": "리포트 읽기", "type": "main", "index": 0 }]] },
+    "리포트 읽기": { "main": [[{ "node": "Discord 전송", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1.0.0",
+  "meta": { "instanceId": "trend-radar" },
+  "tags": []
+}
