@@ -301,7 +301,9 @@ const globalCsvRows = gmatch.all.map((g) => ({
   date,
   term: g.term,
   score: g.fitScore,
-  velocity: '',
+  // ★ 2026-10-24 수정 — 상대속도를 CSV로도 내보내야 한다.
+  //   (velocity 가 빈 문자열이면 "속도로 재랭킹" 설계가 CSV에서는 통째로 사라진다)
+  velocity: g.vel ? Math.round(g.vel) : '',
   crossPlatform: '',
   supplyDeficit: '',
   fit: (g.coreGroups || []).join('/'),
@@ -320,7 +322,7 @@ const globalCsvRows = gmatch.all.map((g) => ({
   action: g.fitLevel || '',
   note: `[${g.geo}] ${g.formatLabel || ''} ${(g.coreGroups || []).join(',')}`,
   videoUrl: '',
-  publishedAt: '',
+  publishedAt: g.publishedAt || '',
 }));
 const globalCsvPath = globalCsvRows.length
   ? await writeCSV(globalCsvRows, `global_trends_${date}.csv`)

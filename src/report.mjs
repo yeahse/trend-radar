@@ -37,6 +37,14 @@ export async function writeReport(snapshot, meta) {
           metric: x.metric, fitScore: x.fitScore, fitLevel: x.fitLevel,
           format: x.format, formatLabel: x.formatLabel,
           coreGroups: x.coreGroups, fmtGroups: x.fmtGroups, url: x.url,
+          // ★ 2026-10-24 수정 — 아래 5개가 빠지면 리포트에서 순위/속도가 깨진다.
+          //   rank      : "12. 제목" 형식의 번호
+          //   vel       : 상대속도(views/h) → 이게 빠지면 전부 "0/h" 로 표시됨
+          //   hoursOld  : 게시 후 경과시간
+          //   metricNum : 절대 수치(metric 은 문자열이라 숫자 정렬 불가)
+          //   publishedAt: 게시 시각 (속도 계산 기준)
+          rank: x.rank, vel: x.vel, hoursOld: x.hoursOld,
+          metricNum: x.metricNum, publishedAt: x.publishedAt,
         }))
       : g.top || [];
     L.push('---');
@@ -279,6 +287,14 @@ export async function writeReport(snapshot, meta) {
           metric: x.metric, fitScore: x.fitScore, fitLevel: x.fitLevel,
           format: x.format, formatLabel: x.formatLabel,
           coreGroups: x.coreGroups, fmtGroups: x.fmtGroups, url: x.url,
+          // ★ 2026-10-24 수정 — 아래 5개가 빠지면 리포트에서 순위/속도가 깨진다.
+          //   rank      : "12. 제목" 형식의 번호
+          //   vel       : 상대속도(views/h) → 이게 빠지면 전부 "0/h" 로 표시됨
+          //   hoursOld  : 게시 후 경과시간
+          //   metricNum : 절대 수치(metric 은 문자열이라 숫자 정렬 불가)
+          //   publishedAt: 게시 시각 (속도 계산 기준)
+          rank: x.rank, vel: x.vel, hoursOld: x.hoursOld,
+          metricNum: x.metricNum, publishedAt: x.publishedAt,
         }))
       : g.top || [];
     L.push('---');
@@ -481,7 +497,9 @@ function buildGlobalEmbeds(g, globalAll) {
         metric: x.metric, fitScore: x.fitScore, fitLevel: x.fitLevel,
         format: x.format, formatLabel: x.formatLabel,
         coreGroups: x.coreGroups, fmtGroups: x.fmtGroups, url: x.url,
-        vel: x.vel, publishedAt: x.publishedAt,
+        // ★ 2026-10-24 수정 — rank/hoursOld/metricNum 누락 보완 (리포트 쪽과 동일)
+        rank: x.rank, vel: x.vel, hoursOld: x.hoursOld,
+        metricNum: x.metricNum, publishedAt: x.publishedAt,
       }))
     : g.top || [];
   const all = [];
