@@ -3,6 +3,7 @@ import path from 'node:path';
 import { REPORTS_DIR, ensureDirs } from './store.mjs';
 import { summary, reviewMarkdown } from './feedback.mjs';
 import { globalTrendsMarkdown, crossCountryLeaders } from './globalmatch.mjs';
+import { redact } from './util.mjs';
 
 const icon = { ACT: '🔴', WATCH: '🟡', IGNORE: '⚪' };
 
@@ -257,11 +258,13 @@ export async function writeReport(snapshot, meta) {
   L.push('## ⚙️ 수집 이슈 / 스킵');
   L.push('');
   if (!meta.errors.length) L.push('_없음_\n');
-  else L.push(meta.errors.map((e) => `- ${e}`).join('\n') + '\n');
+  // ★ 2026-10-24 — 방어적 마스킹 (run.mjs 에서도 redact 하지만 리포트 단독 호출 대비 이중 처리)
+  else L.push(meta.errors.map((e) => `- ${redact(e)}`).join('\n') + '\n');
   if (snapshot.supplySource?.startsWith('api')) {
     L.push(
       `> **YouTube 쿼터**: search.list 1회 = 100유닛 / 일일 10,000유닛 (미국태평양시간 자정 = KST 오후 4시경 리셋).` +
-        ` term당 1회 호출 + 12시간 캐시 → 1일 ≈ 1,000유닛.`
+        ` 1회 실행당 ≈ 3,000유닛 = watchlist term당 1회(22term × 100, 12시간 캐시) + 크로스오버 8키워드(800, 캐시 없음) + mostPopular 12국역.` +
+        ` → **하루 1회 실행이면 안전, 같은 날 여러 번 돌리면 소진된다.** 쿼터 소진 시 429 가 뜨며 나머지 YouTube 항목만 비고 나머지 소스는 정상 동작.`
     );
     L.push('');
   }

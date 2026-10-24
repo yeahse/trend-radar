@@ -4,6 +4,33 @@ const UA =
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * ★ 시크릿 마스킹 (2026-10-24 추가)
+ *
+ * 에러 메시지에 API 키가 그대로 실려서 일일 리포트 파일(및 Discord 본문)에
+ * 평문으로 남던 버그가 있었다. (실측: YouTube 키 8회 노출)
+ * → 모든 에러 문자열을 이거 통과시켜서 키/토큰/웹훅 URL을 가린다.
+ */
+export function redact(text) {
+  if (text == null) return text;
+  return String(text)
+    // YouTube / Google API 키
+    .replace(/AIza[0-9A-Za-z_\-]{10,}/g, 'AIza***REDACTED***')
+    // 쿼리스트링의 키 계열
+    .replace(/([?&](?:key|api_key|apikey|client_secret|access_token|refresh_token|token)=)[^&\s]+/gi, '$1***REDACTED***')
+    // Authorization 헤더 값
+    .replace(/(Bearer|Basic)\s+[A-Za-z0-9._\-]{10,}/g, '$1 ***REDACTED***')
+    // Discord 웹훅 URL
+    .replace(/discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_\-]+/g, 'discord.com/api/webhooks/***REDACTED***')
+    // 그 밖의 긴 시크릿성 문자열 (JWT)
+    .replace(/\beyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b/g, '***REDACTED-JWT***');
+}
+
+/** 문자열 배열 전체를 마스킹 */
+export function redactAll(list) {
+  return (list || []).map((e) => redact(e));
+}
+
 const lastHit = new Map();
 
 /**

@@ -12,7 +12,7 @@ import { collectKYM } from './sources/kym.mjs';
 import { collectEarlyCommunity } from './sources/earlycommunity.mjs';
 import { scoreWatchlist, discoverCandidates } from './score.mjs';
 import { writeReport, postDiscord, postTelegram } from './report.mjs';
-import { todayKST } from './util.mjs';
+import { todayKST, redact } from './util.mjs';
 
 const args = process.argv.slice(2);
 const FAST = args.includes('--fast');           // 레딧/무거운 소스 스킵
@@ -332,6 +332,8 @@ const globalCsvPath = globalCsvRows.length
 const okSourceCount = [raw.reddit, raw.bluesky, raw.kym, raw.itch, yt.trending, nv, wk].filter(
   (a) => Array.isArray(a) ? a.length > 0 : !!a
 ).length;
+// ★ 2026-10-24 — 에러 문자열에 API 키가 평문으로 실려 리포트/Discord에 새는 것을 막는다
+for (let i = 0; i < errors.length; i++) errors[i] = redact(errors[i]);
 // ⚠️ 스냅샷은 용량 때문에 1,500건으로 캡한다 → 리포트/Discord는 전체 목록이 필요하므로 직접 넘긴다
 const reportPath = await writeReport(snapshot, { errors, okSourceCount, globalAll: gmatch.all, crossCountry, crossover });
 
