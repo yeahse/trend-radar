@@ -54,7 +54,7 @@ node tools\verify_sources.mjs  # 소스별 수집健全성 점검 (파서 깨짐
 | 소스 | 엔드포인트 | 잡히는 신호 | 선행도 |
 |---|---|---|---|
 | **네이버 데이터랩** | `qcHash.naver` → `qcExcel.naver` (xlsx) | 한국 검색 수요, 7일 성장률 | ★★★ |
-| **Reddit** | OAuth 우선 / RSS 폴백(서브레딧 top만) | 밈 크로스오버 | ★★★ |
+| **Reddit** | OAuth (`oauth.reddit.com`) | 밈 크로스오버 · 검색 | ★★★ |
 | **Bluesky** | `api.bsky.app/xrpc/app.bsky.feed.searchPosts` | 팬덤 실시간 반응 | ★★★ |
 | **Know Your Meme** | `knowyourmeme.com/trending` | 새 밈의 탄생 | ★★★ |
 | **itch.io** | `itch.io/games/new-and-popular` | 밈 → 비주얼노벨 확장 | ★★ |
@@ -73,14 +73,23 @@ node tools\verify_sources.mjs  # 소스별 수집健全성 점검 (파서 깨짐
 
 > ⚠️ **Reddit RSS 검색은 폐기됨**: 무인증 `search.rss`는 검색을 못 하고 전체 신구 피드를 돌려준다.
 > 실측: `genderbend fanart` 검색에 r/MakeFriendsOver30 등 무관 서브레딧 25건이 유입됨.
-> → OAuth 키 있을 때만 검색. 키 없으면 서브레딧 top만 수집하고 사유를 리포트에 명시.
+> → OAuth 만 쓴다. 인증 실패 시 서브레딧 top만 수집하고 사유를 리포트에 명시.
+
+> ✅ **Reddit 인증 (2026-10-24 정리)**: `reddit.com/prefs/apps` 의 "create an app" 은
+> Reddit 정책 변경으로 **전 계정 차단**되어 있다 (reCAPTCHA는 통과해도 서버가
+> Responsible Builder Policy 메시지를 반환). 대신 Reddit **공식 Devvit CLI** 토큰
+> (`npx devvit login` → `~/.devvit/token`)으로 `scope=*` 전체 접근이 가능하다.
+> `src/reddit_auth.mjs` 가 이 토큰을 읽고 **24시간 만료 시 자동 갱신**한다.
+> 정식 client id/secret 은 `Data Access Request` 승인 후 발급.
+> 상세 → [`docs/06_Reddit_접근_현황.md`](docs/06_Reddit_접근_현황.md)
 
 ### 3-2. 키 필요 (넣으면 강해짐)
 
 | 소스 | 발급 방법 | 얻는 것 | 상태 |
 |---|---|---|---|
 | **YouTube Data API** | Google Cloud Console → API 활성화 → 키 생성 (하루 10,000 유닛 무료) | 키워드별 최근 7일 업로드 수(공급량), **경쟁 영상 목록(제목·채널·게시일)**, 지역 인기 영상 | ✅ `youtube.apiKey` |
-| **Reddit OAuth** | reddit.com/prefs/apps → "script" 앱 → client id/secret | RSS보다 훨씬 안정적·많음, **검색 가능**(크로스오버 탐지의 핵심) | ⏳ 직접 발급 필요 |
+| **Reddit (devvit 토큰)** | `npx devvit login` → 브라우저 승인 | 서브레딧 top + **검색**(크로스오버 탐지의 핵심), 24h 자동 갱신 | ✅ 동작 중 |
+| **Reddit (정식 키)** | Data Access Request 승인 후 `prefs/apps` → script 앱 | 승인 상태로 정식 client id/secret | ⏳ 승인 대기 (티켓 `62G3GP-PWYEV`) |
 | **Discord Webhook** | 서버/채널 → ⚙️ → Integrations → Webhooks | 매일 08:30 브리핑 자동 도착 | ✅ `discord.webhookUrl` |
 
 ---
@@ -158,6 +167,7 @@ trend-radar/
 │   ├── feedback.mjs         # ★ 적중률 계산 + 회고 섹션
 │   ├── decisions.mjs        # ★ 결정 로그 스토리지 (decisions.jsonl)
 │   ├── globalmatch.mjs      # ★ 글로벌 트렌드 → 내 포맷 매칭 + 미디어 형식 분류
+│   ├── reddit_auth.mjs      # ★ Reddit 자격증명 (classic 키 / devvit 토큰 자동 선택 + 24h 자동 갱신)
 │   ├── cache.mjs            # 소스별 TTL 캐시
 │   ├── store.mjs            # JSONL/CSV 저장
 │   ├── lib/xlsx.mjs         # 의존성 없는 xlsx 파서
@@ -168,10 +178,11 @@ trend-radar/
 │   ├── 02_일일_브리핑_자동화.md
 │   ├── 03_수정내역_2026-10-23.md
 │   ├── 04_키_설정_안내.md
-│   └── 05_매일_루틴.md        # ★ 이 프로그램 사용법
+│   ├── 05_매일_루틴.md        # ★ 이 프로그램 사용법
+│   └── 06_Reddit_접근_현황.md  # ★ Reddit 정책 변경 + 인증 경로 + 승인 티켓
 ├── reports/                 # 일일 리포트
 ├── data/                    # 스냅샷·CSV·상태·결정로그
-└── tools/                   # run_daily.bat, selfcheck.mjs, verify_sources.mjs
+└── tools/                   # run_daily.bat, selfcheck.mjs, verify_sources.mjs, probe_subs.mjs
 ```
 
 ---

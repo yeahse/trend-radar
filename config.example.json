@@ -42,20 +42,26 @@
   "reddit": {
     "clientId": "",
     "clientSecret": "",
+    "authMode": "auto",
     "username": "",
-    "_key": "reddit.com/prefs/apps → 'script' 앱 생성 → client id/secret 입력 (무료, OAuth quota 넉넉). 없으면 RSS는 서브레딧 top만 수집 (검색 RSS는 무관 결과 반환해 폐기됨)",
-    "_username": "",
-    "_appRegistration": "★ 2026-10-24 정책 확인: 앱은 반드시 https://developers.reddit.com/app-registration 에서 등록(데이터 API 약관 동의 포함)해야 'create app'이 통과함. prefs/apps만으론 'Responsible Builder Policy' 에러가 남.",
+    "_key": "2026-10-24 정책 변경으로 reddit.com/prefs/apps 'create app' 이 전 계정 차단됨(Responsible Builder Policy). → 정식 경로는 'Data Access Request' 승인 후 client id/secret 발급. 그 전까지는 authMode가 'auto'면 공식 Devvit CLI 토큰(~/.devvit/token)으로 동작하고, expiring 전에 자동 갱신됨.",
+    "_username": "★ Reddit Data API User-Agent 형식 강제: <platform>:<app ID>:<version> (by /u/<이 아이디>). devvit 모드에서는 인증된 계정을 /me 로 자동확인해 UA에 반영함.",
+    "_appRegistration": "★ 2026-10-24 실측: (1) reCAPTCHA는 통과해도 /api/updateapp 가 서버에서 Responsible Builder Policy 메시지를 반환함. (2) 봇 계정을 dev platform에 등록해도 동일. (3) 개발자 공식 CLI 'npx devvit login' 으로 발급되는 access/refresh token 은 scope=* 로 oauth.reddit.com 전체 접근 가능 (실측 200). (4) 정식 승인은 지원요청 양식에서 'Data Access Request' 선택 후 승인 받아야 함.",
     "subreddits": [
       "dankmemes",
       "HarryPotter",
-      "genderbent",
+      "DracoMalfoy",
+      "HarryPotterAIArt",
       "rule63",
       "Animemes",
+      "animeMemes",
       "CharacterDesign",
       "FanFiction",
       "AIart",
+      "AI_Art",
       "MALfoid",
+      "suddenlymalfoid",
+      "Femslash",
       "wholesomeanime"
     ],
     "queries": [
@@ -63,7 +69,12 @@
       "AI fan animation",
       "malfoid",
       "tsundere",
-      "rule 63"
+      "rule 63",
+      "\"female draco\"",
+      "fem draco",
+      "malfoy genderbend",
+      "female version anime",
+      "draco malfoy female"
     ]
   },
   "bluesky": {

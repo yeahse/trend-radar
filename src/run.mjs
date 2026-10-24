@@ -55,6 +55,7 @@ if (FAST) {
   const rd = await collectReddit(cfg, { subs, queries });
   raw.reddit = rd.items;
   errors.push(...rd.errors);
+  console.log(`  Reddit: ${rd.items.length}건 (인증=${rd.authMode || 'none'})`);
   subs.forEach((s) => markFetched(state, `reddit:r/${s}`));
   queries.forEach((q) => markFetched(state, `reddit:q:${q}`));
 }
