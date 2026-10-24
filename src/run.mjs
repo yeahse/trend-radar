@@ -12,7 +12,7 @@ import { collectKYM } from './sources/kym.mjs';
 import { collectEarlyCommunity } from './sources/earlycommunity.mjs';
 import { scoreWatchlist, discoverCandidates } from './score.mjs';
 import { writeReport, postDiscord, postTelegram } from './report.mjs';
-import { todayKST, redact } from './util.mjs';
+import { todayKST, redact, quotaSummary, apiQuota } from './util.mjs';
 
 const args = process.argv.slice(2);
 const FAST = args.includes('--fast');           // 레딧/무거운 소스 스킵
@@ -119,6 +119,18 @@ const proxyPool = terms
   .sort((a, b) => (naverLast7.get(b) || 0) - (naverLast7.get(a) || 0));
 const proxyTerms = proxyPool.slice(0, 14);
 console.log('▶ YouTube 수집 중...');
+// ★ 2026-10-24 — YouTube 일일 쿼터 가드.
+//    같은 날 여러 번 실행해도 10,000유닛을 다 못 태우게 Soft Cap 을 둔다.
+const YT_QUOTA_LIMIT = 10000;
+const YT_QUOTA_SOFT_CAP = 7000;
+const ytQuotaState = (state.ytQuota = state.ytQuota || {});
+const ytQuotaDay = todayKST();
+if (ytQuotaState.date !== ytQuotaDay) {
+  ytQuotaState.date = ytQuotaDay;
+  ytQuotaState.units = 0;
+}
+ytQuotaState.units = Number(ytQuotaState.units || 0);
+const ytUnitsBefore = apiQuota.units;
 const yt = await collectYouTube(cfg, terms, {
   proxyTerms,
   force: FORCE,
@@ -130,6 +142,13 @@ const yt = await collectYouTube(cfg, terms, {
   },
 });
 errors.push(...yt.errors);
+ytQuotaState.units += apiQuota.units - ytUnitsBefore;
+// ★ 429 를 만나면 "오늘 거의 다 썼다"로 올려서, 이후 실행이 비싼 호출을 건너뛰게 한다.
+//    (우리가 세는 값만으로는 이전 실행분/다른 도구 사용분을 알 수 없기 때문)
+if (yt.quotaHit) {
+  ytQuotaState.units = Math.max(ytQuotaState.units, YT_QUOTA_SOFT_CAP);
+  console.log(`  ⚠️ YouTube 쿼터 소진 감지 → 오늘 누적 ${ytQuotaState.units.toLocaleString('ko-KR')}유닛으로 보수 (이후 실행은 비싼 호출 스킵)`);
+}
 
 // ─────────────────────────────────────────────── 🌍 글로벌 트렌드 (watchlist 무관)
 // "전 세계 지금 뭐가 유행하는가" — watchlist 분석과 완전히 별개 축.
@@ -137,6 +156,7 @@ errors.push(...yt.errors);
 let globalItems = [];
 let globalBySource = {};
 {
+  const unitsBeforeG = apiQuota.units;
   const { value, cached } = await getOrFetch(state, 'globaltrends', TTL.global ?? 3 * 3600 * 1000, async () => {
     console.log('▶ 글로벌 트렌드 수집 중... (GoogleTrends·YouTube·Wikipedia·Reddit)');
     const res = await collectGlobalTrends(cfg);
@@ -146,6 +166,7 @@ let globalBySource = {};
   globalItems = value?.items || [];
   globalBySource = value?.bySource || {};
   if (cached) console.log('▶ 글로벌 트렌드: 마지막 결과 재사용 (TTL)');
+  ytQuotaState.units += apiQuota.units - unitsBeforeG;
 }
 
 // 글로벌 트렌드 → 내 채널 포맷 매칭
@@ -185,11 +206,36 @@ let crossover = [];
     kw.push(t);
   }
   const xk = kw.slice(0, cfg.globalTrends?.crossoverMax ?? 8);
-  if (xk.length) {
+  // ★ 2026-10-24 — 쿼터 Soft Cap. 오늘 이미 많이 썼으면 비싼 search.list 호출을 건너뛴다.
+  const crossoverCost = xk.length * 100;
+  if (xk.length && ytQuotaState.units + crossoverCost > YT_QUOTA_SOFT_CAP) {
+    console.log(
+      `▶ 크로스오버 스킵: 오늘 YouTube 쿼터 ${ytQuotaState.units.toLocaleString('ko-KR')}유닛 사용 → ` +
+        `크로스오버 ${crossoverCost}유닛 추가 시 Soft Cap(${YT_QUOTA_SOFT_CAP.toLocaleString('ko-KR')}) 초과`
+    );
+    errors.push(
+      `크로스오버 스킵: 일일 쿼터 Soft Cap 도달 (${ytQuotaState.units}+${crossoverCost} > ${YT_QUOTA_SOFT_CAP}). ` +
+        `공급량·국가별 인기는 정상 수집됨.`
+    );
+  } else if (xk.length) {
     console.log(`▶ 크로스오버 탐지 중... (${xk.length}개 키워드)`);
-    const xr = await collectCrossover(cfg, xk, { regionCode: cfg.globalTrends?.crossoverRegion || 'US' });
+    const unitsBeforeX = apiQuota.units;
+    const xr = await collectCrossover(cfg, xk, {
+      regionCode: cfg.globalTrends?.crossoverRegion || 'US',
+      // ★ 2026-10-24 — 키워드별 12시간 캐시 (재실행 시 100유닛×N 절약)
+      cache: {
+        getResult: (k) => getResult(state, k),
+        getSourceTime: (k) => getSourceTime(state, k),
+        saveResult: (k, v) => saveResult(state, k, v),
+        markFetched: (k) => markFetched(state, k),
+      },
+    });
     crossover = xr.items;
     errors.push(...xr.errors);
+    ytQuotaState.units += apiQuota.units - unitsBeforeX;
+    if (xr.errors.some((e) => String(e).includes('429'))) {
+      ytQuotaState.units = Math.max(ytQuotaState.units, YT_QUOTA_SOFT_CAP);
+    }
   }
 }
 
@@ -238,6 +284,9 @@ const snapshot = {
     date,
     neutral: NEUTRAL,
     geos: cfg.globalTrends?.geos || ['US', 'KR', 'JP', 'GB', 'IN', 'TW'],
+    // ★ 국가별 몇 위까지 보여줄지 (mostPopular 는 국가당 50개를 1유닛에 이미 받으므로 비용 0)
+    perCountry: cfg.globalTrends?.perCountry || 10,
+    perCountryMax: cfg.globalTrends?.perCountryMax || 20,
     total: globalItems.length,
     matchedCount: gmatch.matched.length,
     ideas: gIdeas,
@@ -263,6 +312,10 @@ const snapshot = {
       metric: x.metric, fitScore: x.fitScore, fitLevel: x.fitLevel,
       format: x.format, formatLabel: x.formatLabel,
       coreGroups: x.coreGroups, fmtGroups: x.fmtGroups, url: x.url,
+      // ★ 2026-10-24 수정 — report.mjs 와 동일한 필드 누락(속도/순위가 0 이 되는 원인).
+      //   스냅샷만 읽는 경로(=meta.globalAll 없는 폴백)와 후속 분석에서 속도가 사라지지 않도록 유지
+      rank: x.rank, vel: x.vel, hoursOld: x.hoursOld,
+      metricNum: x.metricNum, publishedAt: x.publishedAt,
     })),
     totalAll: gmatch.all.length,
   },
@@ -342,6 +395,12 @@ console.log('──────────────────────�
 console.log(`소요시간: ${((Date.now() - t0) / 1000).toFixed(1)}초`);
 console.log(`리포트: ${reportPath}`);
 console.log(`CSV    : ${csvPath}`);
+// ★ 2026-10-24 — "하루에 한번인데 왜 이렇게 많이?" 에 대한 답 (이번 실행의 유닛 소비량을 명시)
+console.log(`쿼터   : ${quotaSummary()}`);
+console.log(
+  `         오늘 누적 ${ytQuotaState.units.toLocaleString('ko-KR')}유닛 / 일일 ${YT_QUOTA_LIMIT.toLocaleString('ko-KR')}유닛 ` +
+    `(Soft Cap ${YT_QUOTA_SOFT_CAP.toLocaleString('ko-KR')} · 리셋은 미국태평양시간 자정)`
+);
 console.log('');
 console.log('🔴 ACT');
 for (const w of watch.filter((x) => x.action === 'ACT')) console.log(`  • ${w.term} (${w.score}점) V${w.velocity} ${w.crossPlatform}플랫폼 yt=${w.ytUploads || '-'}`);

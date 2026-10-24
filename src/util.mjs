@@ -5,6 +5,30 @@ const UA =
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * ★ 외부 API 쿼터 소비량 계측 (2026-10-24)
+ *
+ * "하루에 한번만 돌려도 되는데 왜 이렇게 많이?" 에 답하기 위한 계측기.
+ *   YouTube Data API: search.list = 100유닛 · videos.list = 1유닛 / 일일 10,000유닛
+ *   → 실행할 때마다 "이번 실행이 유닛을 얼마나 태웠는지" 를 로그로 남긴다.
+ */
+export const apiQuota = { units: 0, breakdown: {}, calls: 0 };
+
+export function noteQuota(kind, units) {
+  apiQuota.units += units;
+  apiQuota.calls += 1;
+  apiQuota.breakdown[kind] = (apiQuota.breakdown[kind] || 0) + units;
+  return apiQuota.units;
+}
+
+export function quotaSummary(limit = 10000) {
+  const parts = Object.entries(apiQuota.breakdown)
+    .map(([k, v]) => `${k} ${v.toLocaleString('ko-KR')}유닛`)
+    .join(' + ');
+  const pct = Math.round((apiQuota.units / limit) * 100);
+  return `이번 실행 YouTube 쿼터 ${apiQuota.units.toLocaleString('ko-KR')}유닛 (${parts || '없음'}) = 일일 ${limit.toLocaleString('ko-KR')}의 ${pct}%`;
+}
+
+/**
  * ★ 시크릿 마스킹 (2026-10-24 추가)
  *
  * 에러 메시지에 API 키가 그대로 실려서 일일 리포트 파일(및 Discord 본문)에

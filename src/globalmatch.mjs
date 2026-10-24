@@ -272,7 +272,11 @@ export function crossCountryLeaders(items) {
 }
 
 /** 리포트 마크다운 — 길고 넓게 */
-export function globalTrendsMarkdown({ all, ideas, formatMix, geos, total, matchedCount, crossCountry = [], crossover = [] }) {
+export function globalTrendsMarkdown({
+  all, ideas, formatMix, geos, total, matchedCount,
+  crossCountry = [], crossover = [],
+  perCountry = 10, perCountryMax = 20,
+}) {
   const L = [];
   L.push('## 🌍 글로벌 트렌드 — 전 세계 지금 뜨는 것');
   L.push('');
@@ -387,16 +391,20 @@ export function globalTrendsMarkdown({ all, ideas, formatMix, geos, total, match
     L.push('');
   }
 
-  // ④ 국가별 YouTube 인기 (속도 1등 = "지금 뜨는 것")
+  // ④ 국가별 YouTube 인기 (속도 순위 = "지금 뜨는 것")
+  //    ★ 2026-10-24 — 1위만 버리지 말고 국가별 N개(기본 10, 최대 20)를 다 보여준다.
+  //      mostPopular 는 국가당 50개를 1유닛에 이미 받아오므로 **추가 API 비용 0**.
+  const perGeo = Math.max(1, Math.min(perCountryMax, perCountry));
   if (ytAll.length) {
-    L.push('### ▶ 국가별 지금 뜨는 것 (속도 1등 — 게시 후 시간당 조회수)');
+    L.push(`### ▶ 국가별 지금 뜨는 것 (속도 TOP ${perGeo} — 게시 후 시간당 조회수)`);
     L.push('');
-    L.push('> ⚠️ **절대 조회수 1등이 아니라 속도 1등.** 절대조회수는 "과거에 가장 크게 키웠던 것"이라');
+    L.push('> ⚠️ **절대 조회수 1등이 아니라 속도 순위.** 절대조회수는 "과거에 가장 크게 키웠던 것"이라');
     L.push('> 뮤비(금요일 신작)가 항상 1등을 차지한다(국가 1등 중 51% 음악 vs 전체 18%). 속도 순위는 그게 14%로 떨어진다.');
+    L.push('> 국가당 50위를 1유닛에 받아오므로 여기서 더 보여줘도 API 비용은 늘지 않는다.');
     L.push('');
     for (const geo of [...new Set(ytAll.map((x) => x.geo))]) {
       const rows = ytAll.filter((x) => x.geo === geo);
-      const top = [...rows].sort((a, b) => (b.vel || 0) - (a.vel || 0)).slice(0, 5);
+      const top = [...rows].sort((a, b) => (b.vel || 0) - (a.vel || 0)).slice(0, perGeo);
       L.push(`**${geo}**`);
       L.push('');
       L.push(

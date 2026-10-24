@@ -1,4 +1,4 @@
-import { getJson } from '../util.mjs';
+import { getJson, noteQuota } from '../util.mjs';
 import { daysAgoISO } from '../util.mjs';
 
 /**
@@ -36,6 +36,7 @@ async function searchVideos(keyword, apiKey, { regionCode = 'US', maxResults = 5
     key: apiKey,
   });
   if (publishedAfter) p.set('publishedAfter', publishedAfter);
+  noteQuota('search.list', 100);
   const j = await getJson(`${API}/search?${p}`, { minGapMs: 120 });
   return j;
 }
@@ -87,19 +88,43 @@ export async function crossoverSignal(keyword, apiKey, { regionCode = 'US' } = {
 
 /**
  * 여러 키워드를 배치로 탐지
+ *
+ * ★ 2026-10-24 — 키워드별 TTL 캐시 추가.
+ *   search.list = 100유닛/호출이라 같은 날 다시 돌리면 8키워드 × 100 = 800유닛을
+ *   통째로 날린다. 키워드 단위로 12시간 캐시하면 재실행 시 그만큼 아낀다.
+ *   (일일 10,000유닛 중 크로스오버가 800유닛 = 8%)
  */
-export async function collectCrossover(cfg, keywords, { regionCode = 'US', max = 8 } = {}) {
+export async function collectCrossover(
+  cfg,
+  keywords,
+  { regionCode = 'US', max = 8, cache = null, ttlMs = 12 * 3600 * 1000 } = {}
+) {
   const out = [];
   const errors = [];
   if (!cfg.youtube?.apiKey) {
     return { items: out, errors: ['youtube.apiKey 없음 → 크로스오버 탐지 스킵'] };
   }
+  let cachedHits = 0;
   for (const kw of keywords.slice(0, max)) {
+    const CACHE_KEY = `yt_xover_${kw}`;
+    const cached = cache?.getResult?.(CACHE_KEY);
+    const cachedAt = cache?.getSourceTime?.(CACHE_KEY) || 0;
+    if (cached && Date.now() - cachedAt < ttlMs) {
+      out.push(cached);
+      cachedHits++;
+      continue;
+    }
     try {
-      out.push(await crossoverSignal(kw, cfg.youtube.apiKey, { regionCode }));
+      const sig = await crossoverSignal(kw, cfg.youtube.apiKey, { regionCode });
+      out.push(sig);
+      cache?.saveResult?.(CACHE_KEY, sig);
+      cache?.markFetched?.(CACHE_KEY);
     } catch (e) {
       errors.push(`crossover("${kw}"): ${e.message}`);
+      // 429(쿼터 소진)면 나머지 키워드는 시도하지 않는다 (쿼터 더 태우지 않기)
+      if (String(e.message).includes('429')) break;
     }
   }
-  return { items: out, errors };
+  if (cachedHits) errors.push(`크로스오버 ${cachedHits}건은 캐시 재사용 (쿼터 절약, ${cachedHits * 100}유닛 아낌)`);
+  return { items: out, errors, cachedHits };
 }

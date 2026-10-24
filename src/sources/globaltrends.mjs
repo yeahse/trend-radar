@@ -1,4 +1,4 @@
-import { get, getJson } from '../util.mjs';
+import { get, getJson, noteQuota } from '../util.mjs';
 
 /**
  * 🌍 글로벌 트렌드 수집 — "전 세계 지금 뭐가 유행하는가"
@@ -102,6 +102,7 @@ export async function youtubeTrendingByRegion(regions = ['US', 'KR', 'JP'], apiK
       const url =
         'https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular' +
         `&regionCode=${rc}&maxResults=${limit}&key=${apiKey}`;
+      noteQuota('videos.list', 1);
       const j = await getJson(url, { minGapMs: 180, timeoutMs: 20000 });
       (j.items || []).forEach((v, i) => {
         out.push({

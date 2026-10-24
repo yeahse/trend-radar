@@ -1,4 +1,4 @@
-import { get, getJson, parseFeed, daysAgoISO } from '../util.mjs';
+import { get, getJson, parseFeed, daysAgoISO, noteQuota } from '../util.mjs';
 import { supplyProxy, proxySupplyDeficit } from './youtube_supply.mjs';
 
 const API = 'https://www.googleapis.com/youtube/v3';
@@ -17,6 +17,7 @@ export async function supplyAndCompetitors(keyword, apiKey, { days = 7, regionCo
   const url =
     `${API}/search?part=snippet&type=video&maxResults=${maxResults}&q=${encodeURIComponent(keyword)}` +
     `&publishedAfter=${daysAgoISO(days)}T00:00:00Z&regionCode=${regionCode}&key=${apiKey}`;
+  noteQuota('search.list', 100);
   const j = await getJson(url, { minGapMs: 400 });
   return {
     count: j.pageInfo?.totalResults ?? 0,
@@ -34,6 +35,7 @@ export async function supplyAndCompetitors(keyword, apiKey, { days = 7, regionCo
 export async function mostPopular(apiKey, { regionCode = 'KR', maxResults = 50 } = {}) {
   // ⚠️ id 파라미터를 빈 값으로 보내면 HTTP 400 (chart 모드에서는 id 지정 불가)
   const url = `${API}/videos?part=snippet,statistics&chart=mostPopular&regionCode=${regionCode}&maxResults=${maxResults}&key=${apiKey}`;
+  noteQuota('videos.list', 1);
   const j = await getJson(url, { minGapMs: 400 });
   return (j.items || []).map((v) => ({
     title: v.snippet?.title,
@@ -121,6 +123,14 @@ export async function collectYouTube(cfg, watchTerms = [], { proxyTerms = [], ca
           if (String(e.message).includes('429')) {
             quotaHit = true;
             errors.push(`uploads("${term}"): HTTP 429 (일일 쿼터 소진 — 미국태평양시간 자정/KST 오후 4시경 리셋)`);
+            // ★ 2026-10-24 — 쿼터 소진돼도 남은 term 은 **키 불필요 프록시**로 폴백한다.
+            //    그래야 공급량이 통째로 빈칸이 안 된다 (score.mjs 는 uploads > supply 순으로 쓴다)
+            for (const t of apiTerms.slice(apiTerms.indexOf(term))) {
+              try {
+                supply[t] = await supplyProxy(t);
+              } catch { /* 폴백도 실패면 그냥 둔다 */ }
+            }
+            errors.push(`→ 남은 ${apiTerms.length - apiTerms.indexOf(term)}개 term 은 프록시(키 무의존) 폴백으로 측정`);
             break; // 남은 term은 시도하지 않음 (쿼터 더 태우지 않기)
           }
           errors.push(`uploads("${term}"): ${e.message}`);

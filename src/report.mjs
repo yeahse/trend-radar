@@ -3,7 +3,7 @@ import path from 'node:path';
 import { REPORTS_DIR, ensureDirs } from './store.mjs';
 import { summary, reviewMarkdown } from './feedback.mjs';
 import { globalTrendsMarkdown, crossCountryLeaders } from './globalmatch.mjs';
-import { redact } from './util.mjs';
+import { redact, quotaSummary } from './util.mjs';
 
 const icon = { ACT: '🔴', WATCH: '🟡', IGNORE: '⚪' };
 
@@ -58,6 +58,8 @@ export async function writeReport(snapshot, meta) {
         geos: g.geos,
         total: g.total,
         matchedCount: g.matchedCount,
+        perCountry: g.perCountry || 10,
+        perCountryMax: g.perCountryMax || 20,
       })
     );
   }
@@ -262,9 +264,10 @@ export async function writeReport(snapshot, meta) {
   else L.push(meta.errors.map((e) => `- ${redact(e)}`).join('\n') + '\n');
   if (snapshot.supplySource?.startsWith('api')) {
     L.push(
-      `> **YouTube 쿼터**: search.list 1회 = 100유닛 / 일일 10,000유닛 (미국태평양시간 자정 = KST 오후 4시경 리셋).` +
-        ` 1회 실행당 ≈ 3,000유닛 = watchlist term당 1회(22term × 100, 12시간 캐시) + 크로스오버 8키워드(800, 캐시 없음) + mostPopular 12국역.` +
-        ` → **하루 1회 실행이면 안전, 같은 날 여러 번 돌리면 소진된다.** 쿼터 소진 시 429 가 뜨며 나머지 YouTube 항목만 비고 나머지 소스는 정상 동작.`
+      `> **YouTube 쿼터 (실측)**: ${quotaSummary()} · 일일 한도는 10,000유닛, 미국태평양시간 자정(KST 오후 4~5시경) 리셋.` +
+        ` search.list = 100유닛/호출, videos.list(mostPopular) = 1유닛/호출.` +
+        ` → **하루 1회 실행이면 20% 내외로 안전.** 같은 날 여러 번 실행하면 소진된다.` +
+        ` 공급량(10 term)·크로스오버(8 keyword)는 12시간 캐시되어 같은 날 재실행해도 다시 안 탄다.`
     );
     L.push('');
   }
@@ -310,6 +313,8 @@ export async function writeReport(snapshot, meta) {
         geos: g.geos,
         total: g.total,
         matchedCount: g.matchedCount,
+        perCountry: g.perCountry || 10,
+        perCountryMax: g.perCountryMax || 20,
         crossCountry: meta.crossCountry || g.crossCountry || [],
         crossover: meta.crossover || g.crossover || [],
       })
@@ -494,6 +499,9 @@ function buildGlobalEmbeds(g, globalAll) {
   if (!g || !g.total) return { all: [], extra: [] };
   const ideas = g.ideas || [];
   const mix = g.formatMix || [];
+  // ★ 국가별 N위 (2026-10-24) — mostPopular 가 국가당 50개를 1유닛에 받으므로 추가 비용 0
+  const ytPerCountry = Math.max(1, Math.min(20, g.perCountry || 10));
+  const gtPerCountry = Math.max(2, Math.min(20, g.perCountry || 10));
   const top = globalAll && globalAll.length
     ? globalAll.map((x) => ({
         source: x.source, geo: x.geo, term: x.term, channel: x.channel,
@@ -564,34 +572,41 @@ function buildGlobalEmbeds(g, globalAll) {
       title: `🗺 국가별 급상승 검색어${gtGeos.length > 18 ? ` (${i / 18 + 1}/${Math.ceil(gtGeos.length / 18)})` : ''}`,
       color: 0x9b59b6,
       fields: chunk.map((geo) => {
-        const rows = gt.filter((x) => x.geo === geo).slice(0, 2);
+        // ★ 2026-10-24 — 2개만 보여주지 말고 국가당 전부(기본 10) 노출 (수집 비용 0)
+        const rows = gt.filter((x) => x.geo === geo).slice(0, gtPerCountry);
         return {
           name: geo,
-          value: rows.map((x) => `${x.term}${x.metric ? ` _(${x.metric})_` : ''}`).join(' · ') || '-',
+          value: rows.map((x) => `${x.term}${x.metric ? ` _(${x.metric})_` : ''}`).join(' · ').slice(0, 1024) || '-',
           inline: true,
         };
       }),
     });
   }
 
-  // ── embed 3: 국가별 YT **속도 1등** (전 국가, 18개국/embed) → ★ 2번째 메시지로 분리
-  //    ⚠️ 절대조회수 1등이 아니라 속도 1등. 절대조회수는 뮤비가 항상 1등이라 의미가 없다.
+  // ── embed 3: 국가별 YT **속도 TOP N** (전 국가, 6개국/embed) → ★ 2번째 메시지로 분리
+  //    ⚠️ 절대조회수 1등이 아니라 속도 순위. 절대조회수는 뮤비가 항상 1등이라 의미가 없다.
+  //    ★ 2026-10-24 — "1등"만 보내지 말고 국가별 N개(기본 10, 최대 20)를 보낸다.
+  //      mostPopular 는 국가당 50개를 1유닛에 받아오므로 **추가 API 비용 0**.
   const yt = top.filter((x) => x.source === 'youtube-popular');
   const ytGeos = [...new Set(yt.map((x) => x.geo))];
-  for (let i = 0; i < ytGeos.length; i += 18) {
-    const chunk = ytGeos.slice(i, i + 18);
+  const ytPer = Math.max(1, Math.min(20, ytPerCountry));
+  for (let i = 0; i < ytGeos.length; i += 6) {
+    const chunk = ytGeos.slice(i, i + 6);
     const rows = chunk.map((geo) => {
-      const list = yt.filter((y) => y.geo === geo).sort((a, b) => (b.vel || 0) - (a.vel || 0));
-      const x = list[0];
-      return {
-        geo,
-        value: x
-          ? `**${(x.term || '').slice(0, 30)}**\n_${Math.round(x.vel || 0).toLocaleString('ko-KR')}/h_`
-          : '-',
-      };
+      const list = yt
+        .filter((y) => y.geo === geo)
+        .sort((a, b) => (b.vel || 0) - (a.vel || 0))
+        .slice(0, ytPer);
+      const lines = list.map(
+        (x, k) =>
+          `${k + 1}. ${(x.term || '').slice(0, 42)} _${Math.round(x.vel || 0).toLocaleString('ko-KR')}/h_`
+      );
+      return { geo, value: (lines.join('\n') || '-').slice(0, 1024) };
     });
     extra.push({
-      title: `▶ 국가별 지금 뜨는 것 (속도 1등)${ytGeos.length > 18 ? ` (${i / 18 + 1}/${Math.ceil(ytGeos.length / 18)})` : ''}`,
+      title:
+        `▶ 국가별 지금 뜨는 것 (속도 TOP ${ytPer})` +
+        `${ytGeos.length > 6 ? ` (${i / 6 + 1}/${Math.ceil(ytGeos.length / 6)})` : ''}`,
       color: 0xe74c3c,
       fields: rows.map((r) => ({ name: r.geo, value: r.value, inline: true })),
     });
