@@ -134,6 +134,8 @@ const ytUnitsBefore = apiQuota.units;
 const yt = await collectYouTube(cfg, terms, {
   proxyTerms,
   force: FORCE,
+  // ★ 2026-10-24 — 오늘 쿼터가 이미 Soft Cap 에 닿았으면 비싼 search.list 를 시도하지 않는다
+  quotaExhausted: ytQuotaState.units >= YT_QUOTA_SOFT_CAP,
   cache: {
     getResult: (k) => getResult(state, k),
     getSourceTime: (k) => getSourceTime(state, k),

@@ -79,7 +79,7 @@ export async function competitorKeywordHits(cfg, keywords) {
   return { hits, errors };
 }
 
-export async function collectYouTube(cfg, watchTerms = [], { proxyTerms = [], cache = null, force = false } = {}) {
+export async function collectYouTube(cfg, watchTerms = [], { proxyTerms = [], cache = null, force = false, quotaExhausted = false } = {}) {
   const errors = [];
   let trending = [];
   const uploads = {};
@@ -106,6 +106,21 @@ export async function collectYouTube(cfg, watchTerms = [], { proxyTerms = [], ca
         competitors[k] = v.videos || [];
       }
       supplySource = 'api(cache)';
+    } else if (quotaExhausted) {
+      // ★ 2026-10-24 — 오늘 쿼터가 이미 소진됐으면 비싼 search.list(100유닛×10)를 시도하지 않는다.
+      //    429 재시도 백오프(수 초)까지 날리는 게 손해라 곧바로 프록시(키 무의존)로 간다.
+      errors.push(
+        `YouTube 일일 쿼터 이미 소진 → 공급량 API 호출 스킵, 프록시(키 무의존) 폴백으로 전환 (±1~5% 오차)`
+      );
+      supplySource = 'proxy';
+      for (const term of proxyTerms) {
+        try {
+          supply[term] = await supplyProxy(term);
+        } catch (e) {
+          errors.push(`supplyProxy("${term}"): ${e.message}`);
+          await new Promise((r) => setTimeout(r, 4000));
+        }
+      }
     } else {
       // 수요가 있는 term 우선 (유需求量 기준)
       apiTerms = (proxyTerms.length ? proxyTerms : watchTerms).slice(0, 10);
