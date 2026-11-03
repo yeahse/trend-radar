@@ -44,6 +44,16 @@ while ($true) {
     $forced = Test-Path $runNow
     $due    = ($last -ne $today) -and ($now -ge $target)
 
+    # ★ 2026-11-03 보강 — 죽은 프로세스가 남긴 lock 파일 때문에 수집이 영영 안 돌던 것 방지
+    #   lock 이 2시간 넘게 있으면 stale 로 간주하고 제거한다.
+    if (Test-Path $lockFile) {
+      $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
+      if ($lockAge.TotalMinutes -gt 120) {
+        Remove-Item $lockFile -ErrorAction SilentlyContinue
+        Say "stale lock 제거 (경과 $([int]$lockAge.TotalMinutes)분)"
+      }
+    }
+
     if (($forced -or $due) -and -not (Test-Path $lockFile)) {
       if ($forced) { Remove-Item $runNow -ErrorAction SilentlyContinue }
       New-Item -ItemType File -Path $lockFile -ErrorAction SilentlyContinue | Out-Null
