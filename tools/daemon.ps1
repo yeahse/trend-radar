@@ -12,6 +12,14 @@
 #   - PC를 껐다 켜면(오전에 껐다면) 08:30 이후 첫 로그온에 **자동 보정 실행**
 #   - `data\.run_now` 파일을 만들면 즉시 1회 실행
 #   - 실행 결과는 logs\run.log, 데몬 자체 로그는 logs\daemon.log
+#
+# 2026-11-04 보강:
+#   -Once 스위치 추가 → Task Scheduler 가 1회 실행용으로 호출할 때 사용 (상주 루프 없음)
+#   - stale lock 제거 (2시간 초과) → 크래시 후 lock 잔여로 영영 멈추는 것 방지
+#
+param(
+  [switch]$Once
+)
 
 $ErrorActionPreference = 'Continue'
 $root = Split-Path -Parent $PSScriptRoot
@@ -32,7 +40,7 @@ function Say($m) {
   Add-Content -Path $daemonLog -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $m" -Encoding UTF8
 }
 
-Say "데몬 시작 (pid=$PID)"
+Say "데몬 시작 (pid=$PID, once=$Once)"
 
 while ($true) {
   try {
@@ -75,5 +83,6 @@ while ($true) {
   } catch {
     Say "루프 오류: $($_.Exception.Message)"
   }
+  if ($Once) { Say "1회 모드 종료"; break }
   Start-Sleep -Seconds 300
 }
