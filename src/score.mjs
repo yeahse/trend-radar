@@ -209,6 +209,8 @@ const STOP = new Set([
   'what\'s','where\'s','who\'s','he\'s','she\'s','when\'s','how\'s','here\'s','why\'s','just',
   // 2026-10-23 3차 추가: DA/Reddit 피드 메타 워드
   'source','link','url','crosspost','original','op','pinned','stickied','archived','deleted',
+  // 2026-11-13 추가: 한 개인 공지에서 파생된 잔여 단어
+  'would','coming','december','timelapse','princess','twilight',
 ]);
 
 /**
@@ -229,16 +231,60 @@ const GENERIC = new Set([
 
 const isCap = (w) => /^[A-Z]/.test(w) && !/^(I|A|An|The|And|But|So|This|That|My|Your|His|Her|Its|What|When|Why|How)$/.test(w);
 
+/**
+ * ★ 2026-11-13 추가 — "한 사람의 연작 공지"를 여러 신호로 세던 문제.
+ *
+ * 실측 사례: Bluesky 1인이 "Timelapse 1X of my OKAMI Twilight Princess Fan Animation,
+ * Coming this December" 를 11개 연속 올림 → n-gram 'okami' 'twilight princess'
+ * 'december' 'princess' 'timelapse' 'would' 'coming' 이 각각 100점으로 ACT 로 올라옴.
+ * = 시장 신호가 아니라 개인 공지 1개였다.
+ *
+ * 두 가지로 막는다:
+ *   1) 제목 서명 정규화(숫자 제거) → 같은 제목군(연작)은 1회만 계수
+ *   2) 서로 다른 작성자 수를 세고, 1명이면 점수를 WATCH 이하로 제한
+ */
+
+/** 제목에서 순번/연속성 숫자를 제거해 "같은 제목군"을 묶는다 */
+function titleSignature(title) {
+  return String(title || '')
+    .toLowerCase()
+    .replace(/[0-9]+/g, ' ')
+    .replace(/[^a-z0-9가-힣]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** 링크에서 작성자 키를 뽑는다 (없으면 null) */
+function authorKey(link, platform) {
+  const l = String(link || '');
+  let m = l.match(/bsky\.app\/profile\/([^/]+)\//i);
+  if (m) return 'bsky:' + m[1].toLowerCase();
+  m = l.match(/deviantart\.com\/([^/]+)\//i);
+  if (m) return 'da:' + m[1].toLowerCase();
+  m = l.match(/reddit\.com\/r\/[^/]+\/comments\/([a-z0-9]+)/i);
+  if (m) return 'rd:post:' + m[1].toLowerCase(); // reddit 는 작성자 미노출 → post 단위로 구분
+  return null;
+}
+
 export function discoverCandidates({ items, fitTerms, watchTerms, max = 20 }) {
   const count = new Map();
   const bump = (key, it, title, proper) => {
     if (!key || key.length < 4) return;
     if (STOP.has(key)) return;
     if (watchTerms.some((t) => t.toLowerCase() === key)) return;
-    const c = count.get(key) || { term: key, hits: 0, platforms: new Set(), links: [], titles: [], proper: false };
+    const c = count.get(key) || {
+      term: key, hits: 0, platforms: new Set(), links: [], titles: [],
+      proper: false, sigs: new Set(), authors: new Set(),
+    };
+    // ★ 같은 제목군(연작 공지)은 1회만 계수 — 한 사람의 시리즈가 신호 여러 개로 늘지 않게
+    const sig = titleSignature(title);
+    if (c.sigs.has(sig)) return;
+    c.sigs.add(sig);
     c.hits++;
     c.platforms.add(it.platform);
     if (proper) c.proper = true;
+    const ak = authorKey(it.link, it.platform);
+    if (ak) c.authors.add(ak);
     if (it.link && c.links.length < 3) c.links.push(it.link);
     if (c.titles.length < 3) c.titles.push(title.slice(0, 100));
     count.set(key, c);
@@ -266,14 +312,21 @@ export function discoverCandidates({ items, fitTerms, watchTerms, max = 20 }) {
     .map((c) => {
       const pl = c.platforms.size;
       const fitHit = (fitTerms || []).find((f) => c.term.includes(f.toLowerCase()));
-      const score = clamp(
-        c.hits * 5 + pl * 16 + (c.proper ? 12 : 0) + (fitHit ? 22 : 0) + (c.term.includes(' ') ? 8 : 0),
+      // ★ 서로 다른 작성자 수를 주 신호로. reddit post 단위 키는 작성자 미확정이므로 보수적으로 취급.
+      const authorCount = c.authors.size;
+      const singleAuthor = authorCount <= 1;
+      let score = clamp(
+        authorCount * 20 + pl * 14 + (c.proper ? 10 : 0) + (fitHit ? 22 : 0) + (c.term.includes(' ') ? 6 : 0),
         0,
         100
       );
+      // 1인 공지 = 시장 신호 아님 → ACT 불가로 제한
+      if (singleAuthor && !fitHit) score = Math.min(score, 40);
       return {
         term: c.term,
         hits: c.hits,
+        authorCount,
+        singleAuthor,
         platforms: [...c.platforms],
         platformCount: pl,
         proper: c.proper,
@@ -292,7 +345,10 @@ export function discoverCandidates({ items, fitTerms, watchTerms, max = 20 }) {
       }
       const meaningful = c.proper || c.term.includes(' ') || c.fit;
       const freq = c.platformCount >= 2 || c.hits >= 3;
-      return meaningful && freq;
+      if (!meaningful || !freq) return false;
+      // ★ 단일 작성자면 ACT 등급 금지 (fit 키워드 제외 — 내 채널 직격 신호라 유지)
+      if (c.singleAuthor && !c.fit && c.score >= 55) return false;
+      return true;
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, max);
