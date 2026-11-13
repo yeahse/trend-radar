@@ -72,6 +72,8 @@ for (const [k, v] of Object.entries(POP_FIX)) {
 //   → 각 영상은 조회수가 가장 높은 1개국에만 배정하고, 그 합으로 순위를 매긴다.
 const agg = new Map();
 const vidMap = new Map(); // videoId → { views, vel, geos: Map<geo,{views,vel}> }
+const byGeoRaw = {}; // geo → [{title,ch,views}]
+const geoName = { US: '미국', IN: '인도', ID: '인도네시아', BR: '브라질', MX: '멕시코', KR: '한국', JP: '일본', GB: '영국', DE: '독일', FR: '프랑스', TR: '터키', TH: '태국', VN: '베트남', PH: '필리핀', TW: '대만', CA: '캐나다', AU: '호주', IT: '이탈리아', ES: '스페인', PL: '폴란드', SA: '사우디', AE: 'UAE', EG: '이집트', NG: '나이지리아' };
 for (const r of body) {
   const geo = r[ix.geo];
   if (!geo) continue;
@@ -84,6 +86,7 @@ for (const r of body) {
   a.n += 1;
   a.likes += Number(r[ix.likes]) || 0;
   a.comments += Number(r[ix.comments]) || 0;
+  (byGeoRaw[geo] = byGeoRaw[geo] || []).push({ title: r[ix.title] || '', ch: r[ix.channel] || '', views: v });
 
   const raw = r[ix.url] || '';
   const vid = raw.match(/[?&]v=([\w-]{11})/)?.[1] || raw.split('/').filter(Boolean).pop() || `${geo}:${r[ix.title]}`;
@@ -115,9 +118,31 @@ for (const a of list) {
   a.perMillion = a.pop ? (a.views / a.pop) * 1e6 : 0;
   a.velPerMillion = a.pop ? (a.vel / a.pop) * 1e6 : 0;
   a.uniqPerMillion = a.pop ? (a.uniq / a.pop) * 1e6 : 0;
+  // ★ 신뢰도 게이지: 자국 콘텐츠 점유율 (유니크/raw).
+  //   낮으면 "그 나라 시장"이 아니라 "글로벌 콘텐츠 소비국"이라는 뜻.
+  a.localRatio = a.n ? a.uniqN / a.n : 0;
 }
 const dupes = [...vidMap.values()].filter((v) => v.geos.size > 1).length;
 const totalVids = vidMap.size;
+
+// ── ★ 한국어 콘텐츠 시장 (실전 지표) ─────────────────────────────────
+//   mostPopular 에 한국어 영상/한국 채널이 몇 편이나 올라가 있는가
+//   = "한국어 콘텐츠가 이미 그 시장에서 통하는가"의 실측값
+const KO_CHANNELS = /(smtown|hybe|jyp entertainment|bang|ador|pledis|yg ent|fromm|brave girls|secret number|woo!ah!|powerhouse|big hit|bts|blackpink|twice|nct dream|ive|babymonster|aespa|newjeans|nmixx|seventeen|en hyp|dreamcatcher|loona|rebel|new beat|stone music|oden|kakao m)/i;
+const KO_TITLE = /[가-힣]/;
+const koRows = [];
+for (const [geo, items2] of Object.entries(byGeoRaw)) {
+  const ko = items2.filter((v) => KO_TITLE.test(v.title) || KO_CHANNELS.test(v.ch || ''));
+  koRows.push({
+    geo, koKo: geoName[geo] || geo,
+    n: ko.length, share: ko.length / items2.length,
+    views: ko.reduce((s, v) => s + v.views, 0),
+    per: ko.length ? ko.reduce((s, v) => s + v.views, 0) / ko.length : 0,
+    localRatio: list.find((a) => a.geo === geo)?.localRatio || 0,
+  });
+}
+koRows.sort((a, b) => b.per - a.per);
+
 
 const fmt = (n) => Math.round(n).toLocaleString('ko-KR');
 const fmtPop = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : String(n));
@@ -138,16 +163,30 @@ bySize.forEach((a, i) => {
 });
 
 console.log('\n' + '='.repeat(112));
-console.log('【 랭킹 ② 】 인구 대비 — 1인당 유니크 조회수 (유니크 조회수 ÷ 인구 × 100만)');
+console.log('【 랭킹 ② 】 인구 대비 — 1인당 유니크 조회수  ★신뢰도=자국 콘텐츠 점유율');
 console.log('='.repeat(112));
-console.log('#'.padStart(4) + '국가'.padEnd(16) + '1인당유니크조회'.padStart(16) + '인구'.padStart(9) + '유니크조회수'.padStart(15) + '속도/100만'.padStart(13) + '유니크영상당'.padStart(13));
+console.log('#'.padStart(4) + '국가'.padEnd(16) + '1인당유니크조회'.padStart(16) + '자국점유율'.padStart(11) + '판정'.padStart(8) + '인구'.padStart(9) + '유니크조회수'.padStart(15));
 const byPercap = [...list].sort((a, b) => b.uniqPerMillion - a.uniqPerMillion);
 byPercap.forEach((a, i) => {
+  const trust = a.localRatio >= 0.7 ? '✔실체' : a.localRatio >= 0.45 ? '△혼합' : '✕노이즈';
   console.log(
     String(i + 1).padStart(4) + ` ${a.ko} (${a.geo})`.padEnd(16) +
-    fmt(a.uniqPerMillion).padStart(16) + fmtPop(a.pop).padStart(9) +
-    fmt(a.uniq).padStart(15) + fmt(a.velPerMillion).padStart(13) +
-    fmt(a.uniqN ? a.uniq / a.uniqN : 0).padStart(13)
+    fmt(a.uniqPerMillion).padStart(16) + (a.localRatio * 100).toFixed(0).padStart(10) + '%' +
+    trust.padStart(8) + fmtPop(a.pop).padStart(9) + fmt(a.uniq).padStart(15)
+  );
+});
+
+console.log('\n' + '='.repeat(112));
+console.log('【 실전 】 한국어 콘텐츠가 통하는 시장 (mostPopular 내 한국어 영상 기준)');
+console.log('='.repeat(112));
+console.log('#'.padStart(4) + '국가'.padEnd(16) + '한국어편'.padStart(9) + '점유율'.padStart(8) + '한국어조회수'.padStart(14) + '편당평균'.padStart(12) + '자국점유율'.padStart(11) + '  판정');
+koRows.forEach((k, i) => {
+  const verdict = k.n === 0 ? '★공백(기회)' : k.per >= 3000000 ? '✔먹힘' : '보통';
+  console.log(
+    String(i + 1).padStart(4) + ` ${k.koKo} (${k.geo})`.padEnd(16) +
+    String(k.n).padStart(9) + (k.share * 100).toFixed(1).padStart(7) + '%' +
+    k.views.toLocaleString('ko-KR').padStart(14) + Math.round(k.per).toLocaleString('ko-KR').padStart(12) +
+    (k.localRatio * 100).toFixed(0).padStart(10) + '%' + '  ' + verdict
   );
 });
 
@@ -167,14 +206,27 @@ bySize.forEach((a, i) => md.push(`| ${i + 1} | ${a.ko} (${a.geo}) | ${fmt(a.uniq
 md.push('');
 md.push('## ② 인구 대비 — 1인당 유니크 조회수');
 md.push('');
-md.push('| # | 국가 | 1인당 유니크 조회수 | 인구 | 유니크 조회수 | 속도/100만 | 유니크 영상당 평균 |');
-md.push('|---|---|---|---|---|---|---|');
-byPercap.forEach((a, i) => md.push(`| ${i + 1} | ${a.ko} (${a.geo}) | ${fmt(a.uniqPerMillion)} | ${fmtPop(a.pop)} | ${fmt(a.uniq)} | ${fmt(a.velPerMillion)} | ${fmt(a.uniqN ? a.uniq / a.uniqN : 0)} |`));
+md.push('| # | 국가 | 1인당 유니크 조회수 | 자국 콘텐츠 점유율 | 판정 | 인구 |');
+md.push('|---|---|---|---|---|---|');
+byPercap.forEach((a, i) => {
+  const trust = a.localRatio >= 0.7 ? '✔ 실체' : a.localRatio >= 0.45 ? '△ 혼합' : '✕ 노이즈';
+  md.push(`| ${i + 1} | ${a.ko} (${a.geo}) | ${fmt(a.uniqPerMillion)} | ${(a.localRatio * 100).toFixed(0)}% | ${trust} | ${fmtPop(a.pop)} |`);
+});
 md.push('');
-md.push('> **해석**: mostPopular 는 "그 나라에서 지금 인기 있는 것"이라 글로벌 콘텐츠가');
-md.push('> 여러 국가 1위로 중복 집계된다. 그래서 ①은 각 영상을 조회수가 가장 높은');
-md.push('> 1개국에만 배정한 **유니크 기준**이다. ②는 그것을 인구로 나눈 값.');
-md.push('> 두 순위가 크게 갈리면 = 인구는 적은데 시청이 뜨거운 시장.');
+md.push('> **신뢰도 게이지 = 자국 콘텐츠 점유율.** 낮으면 "그 나라 시장"이 아니라');
+md.push('> "글로벌 콘텐츠 소비국"이라는 뜻. (호주 43%·UAE 26%·캐나다 11% = 1인당 순위 노이즈)');
+md.push('');
+md.push('## ★ 실전 — 한국어 콘텐츠가 통하는 시장');
+md.push('');
+md.push('| # | 국가 | 한국어 영상 | 점유율 | 한국어 조회수 | 편당 평균 | 자국점유율 | 판정 |');
+md.push('|---|---|---|---|---|---|---|---|');
+koRows.forEach((k, i) => {
+  const v = k.n === 0 ? '**★ 공백(기회)**' : k.per >= 3000000 ? '✔ 먹힘' : '보통';
+  md.push(`| ${i + 1} | ${k.koKo} (${k.geo}) | ${k.n} | ${(k.share * 100).toFixed(1)}% | ${k.views.toLocaleString('ko-KR')} | ${Math.round(k.per).toLocaleString('ko-KR')} | ${(k.localRatio * 100).toFixed(0)}% | ${v} |`);
+});
+md.push('');
+md.push('> **mostPopular 에 한국어 영상이 몇 편이나 올라가 있는가** = 그 시장에서');
+md.push('> 한국어 콘텐츠가 이미 통하고 있는가의 실측값. 0편이면 완전 공백 시장.');
 md.push('');
 fs.writeFileSync(path.join(root, 'reports', `yt_market_${today}.md`), md.join('\n'), 'utf8');
 console.log(`\n저장: reports/yt_market_${today}.md`);
