@@ -177,11 +177,17 @@ byPercap.forEach((a, i) => {
 });
 
 console.log('\n' + '='.repeat(112));
-console.log('【 실전 】 한국어 콘텐츠가 통하는 시장 (mostPopular 내 한국어 영상 기준)');
+console.log('【 실전 】 한국어 콘텐츠 시장 — ★ 폐기된 지표. 아래는 "K-pop 한국어 영상" 임');
 console.log('='.repeat(112));
-console.log('#'.padStart(4) + '국가'.padEnd(16) + '한국어편'.padStart(9) + '점유율'.padStart(8) + '한국어조회수'.padStart(14) + '편당평균'.padStart(12) + '자국점유율'.padStart(11) + '  판정');
+console.log('   ⚠️ 2026-11-15 정정: 이전 "한국어 편당 평균" 지표는 의미가 없다.');
+console.log('      · 분모가 1~4편이면 평균=그 1편의 값 → 통계적 무의미');
+console.log('      · 그 1편이 SMTOWN/ATEEZ 등 K-pop = "한국어 콘텐츠 수요" 증거가 아님');
+console.log('      · 실측: 순수 한국어(비 K-pop) 콘텐츠는 대만 2편, 그 외 국가 0편');
+console.log('      · mostPopular 은 "그 나라에서 인기 있는 것"일 뿐 네 채널 전환을 재지 않는다.');
+console.log('   → 판정은 네 광고 실측 데이터로: node tools\\ads_country_rank.mjs <지역보고서.csv>');
+console.log('');
 koRows.forEach((k, i) => {
-  const verdict = k.n === 0 ? '★공백(기회)' : k.per >= 3000000 ? '✔먹힘' : '보통';
+  const verdict = k.n === 0 ? '★미투입' : k.per >= 3000000 ? '✔K-pop' : '보통';
   console.log(
     String(i + 1).padStart(4) + ` ${k.koKo} (${k.geo})`.padEnd(16) +
     String(k.n).padStart(9) + (k.share * 100).toFixed(1).padStart(7) + '%' +
@@ -216,17 +222,22 @@ md.push('');
 md.push('> **신뢰도 게이지 = 자국 콘텐츠 점유율.** 낮으면 "그 나라 시장"이 아니라');
 md.push('> "글로벌 콘텐츠 소비국"이라는 뜻. (호주 43%·UAE 26%·캐나다 11% = 1인당 순위 노이즈)');
 md.push('');
-md.push('## ★ 실전 — 한국어 콘텐츠가 통하는 시장');
+md.push('## ★ 실전 — K-pop 한국어 영상 점유율 (참고용. 지표 아님)');
 md.push('');
-md.push('| # | 국가 | 한국어 영상 | 점유율 | 한국어 조회수 | 편당 평균 | 자국점유율 | 판정 |');
-md.push('|---|---|---|---|---|---|---|---|');
+md.push('> **⚠️ 이 표는 판단 근거로 쓰면 안 된다.**');
+md.push('> · 분모 1~4편이면 "편당 평균" = 그 1편의 값 → 통계적 무의미');
+md.push('> · 그 1편이 K-pop(SMTOWN/ATEEZ 등)이면 "한국어 콘텐츠 수요" 증거가 아님');
+md.push('> · 실측(2026-11-15): **순수 한국어(비 K-pop) 콘텐츠는 대만 2편, 그 외 국가 0편**');
+md.push('> · mostPopular 은 "그 나라에서 인기 있는 것"일 뿐 네 채널 전환을 재지 않는다');
+md.push('');
+md.push('> **→ 판정은 네 광고 실측 데이터로:**');
+md.push('> `node tools\\ads_country_rank.mjs <Google Ads 지역보고서.csv>`');
+md.push('');
+md.push('| # | 국가 | K-pop/한국어편 | 점유율 | 조회수 | 편당 평균 | 자국점유율 |');
+md.push('|---|---|---|---|---|---|---|');
 koRows.forEach((k, i) => {
-  const v = k.n === 0 ? '**★ 공백(기회)**' : k.per >= 3000000 ? '✔ 먹힘' : '보통';
-  md.push(`| ${i + 1} | ${k.koKo} (${k.geo}) | ${k.n} | ${(k.share * 100).toFixed(1)}% | ${k.views.toLocaleString('ko-KR')} | ${Math.round(k.per).toLocaleString('ko-KR')} | ${(k.localRatio * 100).toFixed(0)}% | ${v} |`);
+  md.push(`| ${i + 1} | ${k.koKo} (${k.geo}) | ${k.n} | ${(k.share * 100).toFixed(1)}% | ${k.views.toLocaleString('ko-KR')} | ${Math.round(k.per).toLocaleString('ko-KR')} | ${(k.localRatio * 100).toFixed(0)}% |`);
 });
-md.push('');
-md.push('> **mostPopular 에 한국어 영상이 몇 편이나 올라가 있는가** = 그 시장에서');
-md.push('> 한국어 콘텐츠가 이미 통하고 있는가의 실측값. 0편이면 완전 공백 시장.');
 md.push('');
 fs.writeFileSync(path.join(root, 'reports', `yt_market_${today}.md`), md.join('\n'), 'utf8');
 console.log(`\n저장: reports/yt_market_${today}.md`);
